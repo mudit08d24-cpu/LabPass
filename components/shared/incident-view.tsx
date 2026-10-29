@@ -8,13 +8,15 @@
 
 import Link from "next/link";
 import { useId, useState, type ReactNode } from "react";
+import { SparklesIcon } from "lucide-react";
+import { summarizeIncident } from "@/app/actions/ai-incident";
 import { latestReports, PhotoStrip, ReportCard } from "@/components/shared/report-card";
 import { AiSuggestion, ErrorBlock, IncidentBadge, LoadingBlock, Notice, PageHeader, Section, SlotText } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/input";
 import { Avatar } from "@/components/ui/misc";
 import { useToast } from "@/components/ui/toast";
-import { api, type DisputeOutcome, type Incident, type IncidentDecision } from "@/lib/screens";
+import { api, USE_MOCKS, type DisputeOutcome, type Incident, type IncidentDecision } from "@/lib/screens";
 import { useQuery } from "@/lib/screens/use-query";
 import { cn, fmtDateTime } from "@/lib/utils";
 
@@ -312,6 +314,32 @@ function AdminPanel({ i }: { i: Incident }) {
   );
 }
 
+/** Staff ask the AI for a neutral summary and a check-in vs return photo comparison (suggestion only). */
+function IncidentAiButton({ id, onDone }: { id: string; onDone: () => void }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  if (USE_MOCKS) return null;
+  return (
+    <Button
+      variant="outline"
+      loading={busy}
+      onClick={async () => {
+        setBusy(true);
+        try {
+          const r = await summarizeIncident(id);
+          if (r.ok) onDone();
+          else toast.error("AI summary unavailable", r.note);
+        } catch {
+          toast.error("AI summary unavailable", "Review the evidence yourself.");
+        }
+        setBusy(false);
+      }}
+    >
+      <SparklesIcon /> Summarise and compare photos with AI
+    </Button>
+  );
+}
+
 export function IncidentView({ id, mode, back }: { id: string; mode: IncidentMode; back: { href: string; label: string } }) {
   const { data, error, loading, reload } = useQuery(() => api.getIncident(id), [id]);
   if (error) return <ErrorBlock message={error} onRetry={reload} />;
@@ -381,6 +409,8 @@ export function IncidentView({ id, mode, back }: { id: string; mode: IncidentMod
                 </>
               )}
             </AiSuggestion>
+          ) : mode === "staff" || mode === "admin" ? (
+            <IncidentAiButton id={i.id} onDone={reload} />
           ) : null}
           {mode !== "student" && i.userResponse && (
             <Section title="Student's response">
