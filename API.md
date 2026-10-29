@@ -422,3 +422,20 @@ If the repo already has `lib/supabase/server.ts` or `client.ts` from setup, keep
   - [ ] **Audit:** every step above adds a row to `activity_log`.
   - [ ] **Jobs:** `/api/jobs` returns `ok`, emails arrive, and old photos are deleted.
 - C and D: work through the Team checklist at the top.
+
+---
+
+## D — AI functions (`app/actions/ai-*.ts`, wrapper `lib/ai.ts`)
+
+Model: Google Gemini via the Vercel AI SDK (`GEMINI_MODEL`, default `gemini-3.7-flash`). Every AI result has `label: "AI suggestion — needs review"`, is stored in `ai_outputs`, and never changes a booking, badge or penalty by itself. If `ok` is `false`, show the note and let the person decide without AI; the flow must keep working.
+
+| D action | Who can call | Returns | Screen |
+|---|---|---|---|
+| `matchResources(need)` | any logged-in user | `{ ok, items: { resourceId, name, reason }[], label }` · keyword matches when AI fails | student browse page (FR-06) |
+| `reviewCertificate(userBadgeId)` | manager, admin | `{ ok, extracted: { name, course, issuer, date, relevantToResource } \| null, mismatches: string[], note, label }` · also saved to `user_badges.ai_extraction` | `/manage/certificates/<user_badge_id>` (FR-08) |
+| `compareConditionPhotos(bookingId)` | manager, admin | planned (hours 24–36) | incident review (FR-20) |
+| `summariseIncident(incidentId)` | manager, admin | planned (hours 24–36) | incident review (FR-20) |
+
+- **Certificates** must be PDF, PNG, JPG or WEBP. Call `reviewCertificate` when the manager opens the review page; show `note` and `mismatches` next to the certificate, then the manager uses B's `decideCertificate`.
+- **Idle Radar and usage-pattern flags** are A's database functions with B's actions (`getIdleRadar`, `listPendingFlags`, see "Admin and Idle Radar"). D adds AI wording to `ai_pattern` flags later, if time allows.
+- **Test page:** `/api/ai-test` works only with `npm run dev` (404 on the live site). Delete `app/api/ai-test` before submission.
