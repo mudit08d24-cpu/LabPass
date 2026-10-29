@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { SearchIcon, ZapIcon } from "lucide-react";
-import { EmptyState, ErrorBlock, LoadingBlock, PageHeader } from "@/components/shared";
+import Link from "next/link";
+import { SearchIcon, SparklesIcon, ZapIcon } from "lucide-react";
+import { matchResources, type MatchResult } from "@/app/actions/ai-match";
+import { AiSuggestion, EmptyState, ErrorBlock, LoadingBlock, PageHeader } from "@/components/shared";
 import { ResourceCardView } from "@/components/shared/resource-card";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
-import { api, type ResourceFilters, type ResourceWithEligibility } from "@/lib/screens";
+import { api, USE_MOCKS, type ResourceFilters, type ResourceWithEligibility } from "@/lib/screens";
 import { useQuery } from "@/lib/screens/use-query";
 import { cn, istParts } from "@/lib/utils";
 
@@ -29,6 +31,58 @@ async function freeNow(list: ResourceWithEligibility[]) {
   return open.filter((_, i) => busy[i].length === 0).map((r) => r.id);
 }
 
+/** Smart matching (FR-06): describe the need, AI suggests resources with a reason. The student still chooses. */
+function SmartMatch() {
+  const [need, setNeed] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<MatchResult | null>(null);
+  if (USE_MOCKS) return null;
+  return (
+    <div className="paper mb-4 grid gap-3 p-3 sm:p-4">
+      <form
+        className="flex flex-wrap items-end gap-2"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (!need.trim()) return;
+          setBusy(true);
+          setResult(null);
+          try {
+            setResult(await matchResources(need));
+          } catch {
+            setResult({ ok: false, items: [], label: "AI suggestion — needs review" });
+          }
+          setBusy(false);
+        }}
+      >
+        <div className="min-w-[220px] flex-1">
+          <Input placeholder="Describe what you need, e.g. measure a 5 MHz signal" value={need} onChange={(e) => setNeed(e.target.value)} maxLength={500} aria-label="Describe what you need" />
+        </div>
+        <Button type="submit" variant="outline" loading={busy} disabled={!need.trim()}>
+          <SparklesIcon /> Suggest
+        </Button>
+      </form>
+      {(busy || result) && (
+        <AiSuggestion loading={busy} title={result && !result.ok ? "Keyword matches (AI unavailable)" : "Suggested for you"}>
+          {result && result.items.length === 0 ? (
+            <p className="text-sm">Nothing fits that description. Try other words or use the filters below.</p>
+          ) : (
+            <ul className="grid gap-1.5 text-sm">
+              {result?.items.map((i) => (
+                <li key={i.resourceId}>
+                  <Link href={`/resources/${i.resourceId}`} className="font-semibold underline">
+                    {i.name}
+                  </Link>{" "}
+                  — {i.reason}
+                </li>
+              ))}
+            </ul>
+          )}
+        </AiSuggestion>
+      )}
+    </div>
+  );
+}
+
 export default function BrowsePage() {
   const [f, setF] = useState<ResourceFilters>({});
   const { data, error, loading, reload } = useQuery(() => api.listResources(f), [JSON.stringify(f)]);
@@ -42,6 +96,8 @@ export default function BrowsePage() {
   return (
     <div>
       <PageHeader eyebrow="every department, one list" title="What do you need today?" description="Each listing shows whether you can book it now or what you need first." />
+
+      <SmartMatch />
 
       <div className="paper flex flex-wrap items-end gap-2 p-3 sm:p-4" role="search">
         <div className="relative min-w-[220px] flex-1">

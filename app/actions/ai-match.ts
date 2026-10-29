@@ -3,7 +3,7 @@
 // Screen: student browse page (C). The student chooses; the AI only suggests.
 import { z } from "zod";
 import { runAi, AI_LABEL } from "@/lib/ai";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 
 const schema = z.object({
   items: z
@@ -21,12 +21,14 @@ export async function matchResources(need: string): Promise<MatchResult> {
   const text = need.trim().slice(0, 500);
   if (!text) return { ok: false, items: [], label: AI_LABEL };
 
-  // Load bookable resources (not under maintenance). Adjust column names if A's schema differs.
-  const db = createAdminClient();
+  // Signed-in users only (each call uses Gemini quota). Reads run as the user, so RLS applies.
+  const db = await createClient();
+  const { data: auth } = await db.auth.getUser();
+  if (!auth.user) return { ok: false, items: [], label: AI_LABEL };
   const { data, error } = await db
     .from("resources")
     .select("id, name, type, tier, location")
-    .neq("status", "maintenance");
+    .eq("status", "active");
   if (error) console.error("[matchResources] could not load resources", error);
   type Res = { id: string; name: string; type: string; tier: number; location: string | null };
   const resources: Res[] = (data ?? []) as Res[];

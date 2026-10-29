@@ -5,7 +5,8 @@
 
 import { useParams } from "next/navigation";
 import { useState } from "react";
-import { CheckIcon, ExternalLinkIcon, XIcon } from "lucide-react";
+import { CheckIcon, ExternalLinkIcon, SparklesIcon, XIcon } from "lucide-react";
+import { reviewCertificate } from "@/app/actions/ai-certificate";
 import { RequireHat } from "@/components/layout/app-shell";
 import { AiSuggestion, ErrorBlock, LoadingBlock, Notice, PageHeader, ReasonDialog, Section } from "@/components/shared";
 import { Badge } from "@/components/ui/badge";
@@ -27,10 +28,23 @@ export default function CertificateReviewPage() {
   const { data: url, loading: urlLoading } = useQuery(() => (c?.path ? api.getCertificateUrl(c.path) : Promise.resolve(null)), [c?.path]);
   const [reject, setReject] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
   if (error) return <ErrorBlock message={error} onRetry={reload} />;
   if (loading || !c) return <LoadingBlock rows={3} />;
   const isPdf = c.path?.toLowerCase().endsWith(".pdf");
-  const ai = c.aiExtraction ? Object.entries(c.aiExtraction).filter(([k, v]) => k !== "note" && v !== null && v !== "") : [];
+  // Saved by reviewCertificate (D's AI action) in user_badges.ai_extraction. It only suggests; the manager decides.
+  const ai = c.aiExtraction ? Object.entries(c.aiExtraction).filter(([k, v]) => !["note", "label", "mismatches"].includes(k) && v !== null && v !== "") : [];
+  const runAiCheck = async () => {
+    setAiBusy(true);
+    try {
+      const r = await reviewCertificate(c.userBadgeId);
+      if (r.ok) reload();
+      else toast.error("AI check unavailable", r.note);
+    } catch {
+      toast.error("AI check unavailable", "Review the certificate yourself.");
+    }
+    setAiBusy(false);
+  };
   const note = c.aiExtraction && typeof c.aiExtraction.note === "string" ? c.aiExtraction.note : null;
 
   return (
@@ -59,6 +73,11 @@ export default function CertificateReviewPage() {
               </div>
             </div>
           </Section>
+          {ai.length === 0 && c.path && c.status === "pending" && (
+            <Button variant="outline" loading={aiBusy} onClick={runAiCheck}>
+              <SparklesIcon /> Read certificate with AI
+            </Button>
+          )}
           {ai.length > 0 && (
             <AiSuggestion loading={false} title="Read from the certificate">
               <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
