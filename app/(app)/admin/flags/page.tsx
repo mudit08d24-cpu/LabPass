@@ -4,6 +4,8 @@
 // usage pattern; nothing is blocked until an admin confirms (decideUserFlag).
 
 import { useId, useState } from "react";
+import { SparklesIcon } from "lucide-react";
+import { scanUsagePatterns } from "@/lib/actions/admin";
 import { RequireHat } from "@/components/layout/app-shell";
 import { AiSuggestion, Ago, EmptyState, ErrorBlock, LoadingBlock, PageHeader, ReasonDialog } from "@/components/shared";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
 import { Avatar } from "@/components/ui/misc";
 import { useToast } from "@/components/ui/toast";
-import { api, type UserFlag } from "@/lib/screens";
+import { api, USE_MOCKS, type UserFlag } from "@/lib/screens";
 import { useQuery, useRules } from "@/lib/screens/use-query";
 import { fmtDateTime } from "@/lib/utils";
 
@@ -35,7 +37,17 @@ function Evidence({ f }: { f: UserFlag }) {
       {entries.map(([k, v]) => (
         <div key={k} className="contents">
           <dt className="text-ink/70">{label(k)}</dt>
-          <dd className="font-semibold">{show(v)}</dd>
+          <dd className="font-semibold">
+            {Array.isArray(v) && v.every((x) => typeof x === "string") ? (
+              <ul className="list-disc pl-5">
+                {v.map((x) => (
+                  <li key={x}>{x}</li>
+                ))}
+              </ul>
+            ) : (
+              show(v)
+            )}
+          </dd>
         </div>
       ))}
     </dl>
@@ -49,6 +61,7 @@ export default function FlagsPage() {
   const { data, error, loading, reload } = useQuery(() => api.listPendingFlags(), []);
   const [dlg, setDlg] = useState<null | { f: UserFlag; confirm: boolean }>(null);
   const [days, setDays] = useState(7);
+  const [scanning, setScanning] = useState(false);
 
   return (
     <RequireHat hats={["admin"]}>
@@ -57,6 +70,27 @@ export default function FlagsPage() {
         title="Restrictions to review"
         description={`Raised after ${rules?.no_show_flag_count ?? "–"} no-shows in ${rules?.no_show_window_days ?? "–"} days, or by an AI usage pattern. Nothing happens unless you confirm.`}
       />
+      {!USE_MOCKS && (
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <Button
+            variant="outline"
+            loading={scanning}
+            onClick={async () => {
+              setScanning(true);
+              const r = await scanUsagePatterns();
+              setScanning(false);
+              if (!r.ok) toast.error("Scan didn't run", r.error);
+              else {
+                toast.success(r.data.flagged ? `${r.data.flagged} new pattern flag${r.data.flagged === 1 ? "" : "s"}` : "No new patterns found", `${r.data.scanned} bookings checked from the last 30 days.`);
+                reload();
+              }
+            }}
+          >
+            <SparklesIcon /> Scan usage patterns now
+          </Button>
+          <p className="text-[13px] text-mute">Also runs every 5 minutes. Looks for late cancellations, repeated overdue returns and one student holding most of a busy resource.</p>
+        </div>
+      )}
       {error ? (
         <ErrorBlock message={error} onRetry={reload} />
       ) : loading && !data ? (

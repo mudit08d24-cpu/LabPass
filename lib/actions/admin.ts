@@ -3,8 +3,9 @@
 // Admin and Idle Radar — Member B. Repo path: lib/actions/admin.ts
 // Restrictions are never automatic: A's database proposes (user_flags), an admin decides.
 
-import { getDb } from "@/lib/actions/db";
+import { getDb, currentUserId } from "@/lib/actions/db";
 import { rpc, badId, isoDate, needsReason, text, fail, ok } from "@/lib/actions/db";
+import { flagUsagePatterns, type PatternJobReport } from "@/lib/jobs/pattern-flags";
 import { type Result, failFrom } from "@/lib/actions/errors";
 
 export type UserFlag = {
@@ -57,6 +58,21 @@ export async function decideUserFlag(flagId: string, confirm: boolean, reason: s
     return fail("Please choose a block length of 1 to 30 days.");
   }
   return rpc("decide_user_flag", { p_flag_id: flagId, p_confirm: confirm === true, p_reason: text(reason), p_block_days: blockDays ?? null });
+}
+
+// FR-26: admin runs the usage-pattern scan now (it also runs every 5 minutes from /api/jobs).
+// Rule-based counts; new flags appear in listPendingFlags with source "ai_pattern".
+export async function scanUsagePatterns(): Promise<Result<PatternJobReport>> {
+  const db = await getDb();
+  const uid = await currentUserId(db);
+  if (!uid) return fail("Please sign in again.");
+  const { data: me } = await db.from("profiles").select("roles").eq("id", uid).maybeSingle();
+  if (!((me?.roles as string[] | undefined) ?? []).includes("admin")) return fail("Only an admin can run this scan.");
+  try {
+    return ok(await flagUsagePatterns());
+  } catch {
+    return fail("The scan couldn't run. Please try again.");
+  }
 }
 
 // Admin lifts a booking block early.
