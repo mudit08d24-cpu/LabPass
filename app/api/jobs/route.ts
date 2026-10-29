@@ -8,7 +8,8 @@
 // Jobs:
 //   - send notification emails (lib/jobs/send-emails.ts)
 //   - delete condition photos 30 days after the booking closes (lib/jobs/purge-photos.ts)
-// Each job runs even if the other fails; the reply reports both.
+//   - raise suspicious usage-pattern flags for the admin (lib/jobs/pattern-flags.ts, FR-26)
+// Each job runs even if the others fail; the reply reports all of them.
 //
 // Test email (to check the Resend domain works):
 //   curl -X POST "<APP_URL>/api/jobs?test=you@example.com" -H "x-cron-secret: <CRON_SECRET>"
@@ -18,6 +19,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { sendPendingEmails } from "@/lib/jobs/send-emails";
 import { purgeOldPhotos } from "@/lib/jobs/purge-photos";
+import { flagUsagePatterns } from "@/lib/jobs/pattern-flags";
 import { renderEmail, sendEmail } from "@/lib/email";
 
 // No `dynamic` or `runtime` exports: the repo turns on cacheComponents (next.config.ts), which
@@ -58,6 +60,11 @@ export async function POST(request: Request) {
     results.photos = await purgeOldPhotos();
   } catch (e) {
     results.photos = { error: e instanceof Error ? e.message : "failed" };
+  }
+  try {
+    results.patterns = await flagUsagePatterns();
+  } catch (e) {
+    results.patterns = { error: e instanceof Error ? e.message : "failed" };
   }
   return Response.json({ ok: true, ranAt: new Date().toISOString(), results });
 }

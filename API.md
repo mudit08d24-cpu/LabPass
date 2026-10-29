@@ -287,6 +287,7 @@ So emails reach every user (not only the Resend account owner), Resend needs a d
 |---|---|---|
 | `listPendingFlags()` | `user_flags` (admin only) | `{ id, userId, userName, source, evidence, proposedBlockDays, createdAt }[]` · source: `no_show_rule \| ai_pattern` |
 | `decideUserFlag(flagId, confirm, reason, blockDays?)` | `decide_user_flag` | — · confirm blocks booking (default: the proposed length) or dismiss |
+| `scanUsagePatterns()` | `record_ai_pattern_flag` (admin only) | `{ scanned, flagged, skipped, errors }` · FR-26 rule-based scan, also runs every 5 min from `/api/jobs`; new flags have source `ai_pattern` and `evidence.signals: string[]` |
 | `liftUserBlock(userId, reason)` | `lift_user_block` | — |
 | `getIdleRadar(from, to)` | `idle_radar` | `{ resourceId, resourceName, departmentId, availableHours, bookedHours, usedHours, utilisation, noShowRate, waitlistLength, hoursUnlocked, bottleneck }[]` |
 | `getIdleRadarHourly(resourceId, from, to)` | `idle_radar_hourly` | `{ weekday, hour, bookedHours }[]` · weekday Mon = 0 |
@@ -437,5 +438,5 @@ Model: Google Gemini via the Vercel AI SDK (`GEMINI_MODEL`, default `gemini-3.7-
 | `summariseIncident(incidentId)` | manager, admin | planned (hours 24–36) | incident review (FR-20) |
 
 - **Certificates** must be PDF, PNG, JPG or WEBP. Call `reviewCertificate` when the manager opens the review page; show `note` and `mismatches` next to the certificate, then the manager uses B's `decideCertificate`.
-- **Idle Radar and usage-pattern flags** are A's database functions with B's actions (`getIdleRadar`, `listPendingFlags`, see "Admin and Idle Radar"). D adds AI wording to `ai_pattern` flags later, if time allows.
+- **Idle Radar and usage-pattern flags** are A's database functions with B's actions (`getIdleRadar`, `listPendingFlags`, see "Admin and Idle Radar"). `ai_pattern` flags come from B's rule-based scan (`lib/jobs/pattern-flags.ts`): late cancellations, repeated overdue returns, one student holding most of a contested resource.
 - **Test page:** `/api/ai-test` works only with `npm run dev` (404 on the live site). Delete `app/api/ai-test` before submission.
