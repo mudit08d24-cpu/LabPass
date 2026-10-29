@@ -1,6 +1,7 @@
 "use server";
 // Certificate review (FR-08): read an uploaded certificate, extract details, flag mismatches.
-// Screen: manager certificate review (C). The MANAGER approves or rejects the badge; the AI only suggests.
+// Screen: /manage/certificates/<user_badge_id> (C). The MANAGER approves or rejects with B's
+// decideCertificate; the AI only suggests. The result is also saved to user_badges.ai_extraction.
 import { z } from "zod";
 import { runAi, AI_LABEL } from "@/lib/ai";
 import { requireRole } from "@/lib/auth";
@@ -30,34 +31,41 @@ const MEDIA_TYPES: Record<string, string> = {
   webp: "image/webp",
 };
 
-/**
- * @param userId       the student who uploaded the certificate (profiles.id)
- * @param filePath     path inside the private "certificates" bucket, e.g. "<userId>/first-aid.pdf"
- * @param resourceName the resource the badge is for, e.g. "3D printer"
- */
-export async function reviewCertificate(
-  userId: string,
-  filePath: string,
-  resourceName: string
-): Promise<CertificateReview> {
+/** @param userBadgeId user_badges.id — the certificate submission (from B's submitCertificate). */
+export async function reviewCertificate(userBadgeId: string): Promise<CertificateReview> {
   await requireRole(["manager", "admin"]);
   const fail = (note: string): CertificateReview => ({ ok: false, extracted: null, mismatches: [], note, label: AI_LABEL });
 
+  // Service-role client: certificates are private. Access is limited by requireRole above.
+  const db = createAdminClient();
+  const { data: ub } = await db
+    .from("user_badges")
+    .select("id, user_id, evidence_url, badge_id")
+    .eq("id", userBadgeId)
+    .single();
+  if (!ub?.evidence_url) return fail("No certificate file found for this request — review manually.");
+
+  const { data: badge } = await db.from("badges").select("name, resource_id").eq("id", ub.badge_id).single();
+  const [{ data: resource }, { data: profile }] = await Promise.all([
+    badge?.resource_id
+      ? db.from("resources").select("name").eq("id", badge.resource_id).single()
+      : Promise.resolve({ data: null }),
+    db.from("profiles").select("name").eq("id", ub.user_id).single(),
+  ]);
+  const resourceName: string = resource?.name ?? badge?.name ?? "this resource";
+
+  const filePath: string = ub.evidence_url;
   const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
   const mediaType = MEDIA_TYPES[ext];
-  if (!mediaType) return fail("Unsupported file type — review manually (use PDF, PNG or JPG).");
+  if (!mediaType) return fail("Unsupported file type — review manually (PDF, PNG, JPG or WEBP).");
 
-  const db = createAdminClient();
-  const [{ data: profile }, { data: file, error }] = await Promise.all([
-    db.from("profiles").select("name").eq("id", userId).single(),
-    db.storage.from("certificates").download(filePath),
-  ]);
+  const { data: file, error } = await db.storage.from("certificates").download(filePath);
   if (error || !file) return fail("Could not open the certificate file — review manually.");
+  const bytes = new Uint8Array(await (file as Blob).arrayBuffer());
 
-  const bytes = new Uint8Array(await file.arrayBuffer());
   const res = await runAi({
     feature: "certificate",
-    refId: userId,
+    refId: userBadgeId,
     schema,
     system:
       "You read training certificates for a university lab. Extract only what is printed. " +
@@ -93,5 +101,9 @@ export async function reviewCertificate(
   if (!x.name || !x.date) mismatches.push("Some details could not be read");
 
   const note = mismatches.length ? `Check: ${mismatches.join("; ")}.` : "No mismatches found.";
-  return { ok: true, extracted: x, mismatches, note, label: AI_LABEL };
+  const review: CertificateReview = { ok: true, extracted: x, mismatches, note, label: AI_LABEL };
+
+  // Keep the suggestion with the request so the review page can show it again. Never changes status.
+  await db.from("user_badges").update({ ai_extraction: { ...x, mismatches, note, label: AI_LABEL } }).eq("id", userBadgeId);
+  return review;
 }

@@ -28,7 +28,8 @@ export async function matchResources(need: string): Promise<MatchResult> {
     .select("id, name, type, tier, location")
     .neq("status", "maintenance");
   if (error) console.error("[matchResources] could not load resources", error);
-  const resources = data ?? [];
+  type Res = { id: string; name: string; type: string; tier: number; location: string | null };
+  const resources: Res[] = (data ?? []) as Res[];
   if (resources.length === 0) return { ok: false, items: [], label: AI_LABEL };
 
   const res = await runAi({
