@@ -16,11 +16,11 @@ export async function loadRules(): Promise<Rules> {
 
 export async function saveResource(d: ResourceDraft): Promise<Result<{ id: string }>> {
   const db = await serverDb();
+  // department_id is set once, on insert: A's grants don't allow updating it (a resource can't move department).
   const row = {
     name: d.name.trim(),
     type: d.type,
     tier: d.tier,
-    department_id: d.departmentId,
     manager_id: d.managerId,
     location: d.location.trim() || null,
     max_hours: d.maxHours,
@@ -33,7 +33,7 @@ export async function saveResource(d: ResourceDraft): Promise<Result<{ id: strin
     const { error } = await db.from("resources").update(row).eq("id", id);
     if (error) return { ok: false, error: plain(error.message) };
   } else {
-    const { data, error } = await db.from("resources").insert(row).select("id").single();
+    const { data, error } = await db.from("resources").insert({ ...row, department_id: d.departmentId }).select("id").single();
     if (error || !data) return { ok: false, error: plain(error?.message) };
     id = data.id;
   }
