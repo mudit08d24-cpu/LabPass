@@ -49,6 +49,13 @@ export async function getBusyTimes(resourceId: string, from: string, to: string)
 
 export type SupervisorOption = TimeSlot & { slotId: string; supervisorId: string; supervisorName: string; kind: "staff" | "peer" };
 
+// Busy times for many resources in ONE server round trip (Browse → "Free right now").
+export async function getBusyTimesMany(resourceIds: string[], from: string, to: string): Promise<Result<Record<string, TimeSlot[] | null>>> {
+  const ids = Array.from(new Set(resourceIds)).filter((id) => !badId(id)).slice(0, 100);
+  const results = await Promise.all(ids.map((id) => getBusyTimes(id, from, to)));
+  return ok(Object.fromEntries(ids.map((id, i) => [id, results[i].ok ? results[i].data : null])));
+}
+
 // FR-09: supervisors a student can pick for a Tier 3 booking.
 export async function listSupervisorAvailability(resourceId: string, from: string, to: string): Promise<Result<SupervisorOption[]>> {
   const f = isoTime(from), t = isoTime(to);
