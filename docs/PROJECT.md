@@ -392,6 +392,8 @@ Each account opens on its own home page: students on Browse, the manager on Requ
 6. **Admin** → Idle Radar (utilisation, dead hours, bottlenecks) → Flags → **Scan usage patterns now**.
 7. **Dr Menon** → Our resources → a resource → **QR** to see the check-in code.
 
+**Sample certificates** for the Tier 2 upload (step 3) are in [`docs/samples/`](samples/): `certificate-priya-3d-printer.pdf` should pass the AI review with no mismatches; `certificate-arjun-mismatch.pdf` has a wrong name, a future date and an unrelated course, so the AI flags all three. Both are clearly marked as fictional samples.
+
 Opening hours for the demo resources are Monday to Saturday, 08:00–20:00 IST. A booking must start in the future, and check-in works from 15 minutes before to 15 minutes after its start.
 
 ## 11. Limitations
