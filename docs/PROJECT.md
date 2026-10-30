@@ -7,31 +7,152 @@
 ---
 
 ## 1. Use case and problem
-<!-- Owner: D. Two blockers: no trust layer, supervision bottleneck. Primary persona Priya, owner persona Mr Rao (see PRD). -->
+
+University departments own labs, rooms and equipment that sit idle for long periods, while students in other departments who need them can't reach them. Equipment tends to be tied to the group that bought it, so it is used below capacity and bought twice instead of shared (see the sources in section 3). Two things block sharing:
+
+1. **No trust layer.** Owners have no way to check a borrower's training, track who used what, or prove the condition before and after use. Students have no visibility of what other departments have.
+2. **Supervision bottleneck.** Specialised equipment needs a supervisor, and staff are free only a few hours a day, so the equipment stays locked even when demand is high.
+
+**Primary persona.** Priya, a second-year CSE student, needs an oscilloscope for her project; the one she needs sits unused in the ECE lab most afternoons.
+
+**Owner persona.** Mr Rao, the ECE lab manager, is willing to share but needs to know each borrower is trained and accountable.
+
+**Goals:** let any verified student find and safely use idle resources from any department; keep owners in control, with every access decision made or confirmed by a person; allocate scarce resources fairly and explain every allocation; create new usable hours through peer supervision; and keep a complete, tamper-proof record of every booking.
+
+The 48-hour build covers one fictional university (Northfield Institute of Technology), three departments and six demo resources.
 
 ## 2. Users and owners
-<!-- Owner: D. The five roles (student, peer supervisor, owner, manager, admin): who they are, can do, cannot do. Table from PRD. -->
+
+Five roles, enforced in the database with row-level security. One person can hold more than one role; for example, a student can also be a peer supervisor.
+
+| Role | Who | Can do | Cannot do |
+| --- | --- | --- | --- |
+| Student | Any verified student of the university | Browse, take quizzes, upload certificates, book, check in, return, report issues, dispute decisions, see own history | See other users' details, approve anything |
+| Peer supervisor | Tier 2 student approved for a specific resource | Everything a student can, plus publish supervision hours and co-sign check-in and return for that resource | Approve bookings, decide incidents |
+| Owner | Department head or representative | List and edit the department's resources; set rules, tiers, limits and checklists; assign managers | Act on other departments' resources |
+| Manager | Lab staff for the owner's resources | Approve, reject or waitlist requests; confirm returns; review certificates; approve and suspend supervisors; decide incidents | Change audit records, act outside assigned resources |
+| Admin | Platform administrator | See all resources and bookings, Idle Radar, suspicious-pattern flags; confirm restrictions; resolve disputes | Edit or delete audit records |
+
+As built, `profiles.roles` holds `student`, `manager` and `admin`. Owners are the people named in `departments.owner_id`, and peer supervisors are students with an approved row in `supervisor_approvals`. Route access is checked in `proxy.ts` and again by the database.
 
 ## 3. Evidence
-<!-- Owner: D. 3–4 real sources: link + one sentence on what each shows. Only numbers you actually read on the page. -->
 
 | Source | What it shows |
 | --- | --- |
-|  |  |
-|  |  |
-|  |  |
+| [CU Boulder Environmental Center — Equipment Sharing and Efficient Space Use](https://www.colorado.edu/ecenter/programs/cu-green-labs-program/equipment-sharing-efficient-space-use) | A university sustainability office argues that labs should turn underused equipment into shared resources: sharing avoids duplicate purchases, lab space is expensive to build and run, and shared facilities give researchers access to equipment regardless of which group they belong to. |
+| [Lab Manager — Creating Highly Specialized Core Labs from Aging, Underused Spaces](https://www.labmanager.com/creating-highly-specialized-core-labs-from-aging-underused-spaces-32968) | Lab architects describe universities converting underused space into shared "core" labs, which give researchers tools they couldn't fund alone, and note that renovating is often more cost-effective than building new. |
+| [The Asia Business Daily — Opening of University Research Infrastructure (29 May 2026)](https://view.asiae.co.kr/en/article/2026052912524106923) | Korea's national equipment registry lists 93,480 research equipment items, 22,335 (24%) owned by universities. Equipment tied to individual professors' labs leads to duplicate purchases and underuse; one university's instrument worth 1.8 billion won sat idle for years. The government plans to open university equipment for sharing and to survey idle equipment from 2027. |
+| [St Petersburg University — It Is Time to Collect and Use Scattered Equipment (2015)](https://english.spbu.ru/news-events/fresh-start/it-time-collect-and-use-scattered-equipment) | A university found that equipment outside its shared research centres was scattered across rooms, often missing from inventory, used below capacity and lacking documentation. It proposed an open equipment database, clear usage rules and schedules so researchers from other teams could use it — the same gap LabPass addresses with one shared catalogue, booking rules and access tiers. |
 
 ## 4. Solution overview
-<!-- Owner: D. One paragraph + the key ideas: skills passport (tiers 0–3), peer supervisors, fairness score, photo-backed handovers, Idle Radar, audit log. -->
+
+LabPass is one web app where every department lists what it can share and any verified student can find it, prove they're trained, book it and hand it back with photo evidence. Owners keep control: every access decision is made or confirmed by a person, every rule is enforced by the database, and every action is recorded. AI helps with suggestions but never decides.
+
+- **Skills passport (Tiers 0–3).** Each resource has a tier, and students earn badges per resource: Tier 0 is open to any student, Tier 1 needs a 5-question safety quiz, Tier 2 needs a certificate approved by the manager (or graduation from Tier 3), and Tier 3 is supervised use only. Every listing shows where the student stands and the next step.
+- **Peer supervisors.** Trained Tier 2 students apply to supervise a resource, publish their available hours, co-sign handovers and earn credits. Tier 3 students can book inside those hours, which unlocks equipment that would otherwise wait for staff.
+- **Explainable fairness score.** Contested slots go to the highest priority score (fresh to the resource, verified deadline, hours already used, recent no-shows), shown with its full breakdown to the student and the manager. Hard limits on active bookings, weekly hours and credits stop anyone taking everything.
+- **Photo-backed handovers.** Check-in by QR code with a checklist and photos; return with a checklist and photos; the manager confirms. Damage becomes an incident with evidence, decided by a person with a reason, and the student can dispute it.
+- **Idle Radar.** A dashboard of utilisation, peak and dead hours, no-show rate, waitlist length, bottlenecks and hours unlocked by peer supervision.
+- **Audit log.** Every state change is written to an append-only log (who, what, reason, before, after, when), so each booking has a full timeline.
 
 ## 5. Workflow (the booking journey)
-<!-- Owner: A. List → discover → qualify → request → approve → check in → return → incident → history. Booking states and transitions table; diagram. -->
+
+1. **List.** A department owner lists a resource: type, tier, limits, opening hours, handover checklist, photos and a printable QR code.
+2. **Discover.** A student browses every department's resources, filters them, or describes a need and gets AI suggestions. Each listing shows whether they can book it, or what they need first.
+3. **Qualify.** Tier 1: pass the safety quiz. Tier 2: upload a certificate for the manager to approve, or graduate from Tier 3. Tier 3: book with a staff or peer supervisor whose published hours cover the slot.
+4. **Request.** The student picks a slot and a purpose and sees every check, the credit cost and their priority score before sending.
+5. **Approve.** The manager approves, rejects or waitlists, with a reason. Approving charges the credits and moves overlapping requests to the waitlist.
+6. **Check in.** From 15 minutes before to 15 minutes after the start, the student scans the QR code (or types the code), ticks the checklist and adds a photo. A peer supervisor co-signs.
+7. **Return.** The student ticks the checklist again and adds a photo; the manager confirms the return.
+8. **Incident.** Damage, delay or a missing item becomes an incident with photos. The manager decides with a reason (optionally after an AI summary and photo comparison), and the student can respond or dispute.
+9. **History.** Every step is in the booking's timeline from the audit log, visible to the student and the manager.
+
+### Booking states
+
+```mermaid
+stateDiagram-v2
+    [*] --> requested: student requests
+    requested --> approved: manager approves (credits charged)
+    requested --> rejected: manager rejects (reason)
+    requested --> waitlisted: manager waitlists, or an overlapping request is approved
+    waitlisted --> approved: student accepts a waitlist offer
+    requested --> cancelled: student or manager cancels, or the slot starts undecided
+    waitlisted --> cancelled: student declines the offer or cancels, or the slot starts
+    approved --> cancelled: student or manager cancels
+    approved --> no_show: no check-in within 15 min of the start
+    approved --> checked_in: student checks in (QR + checklist + photo)
+    checked_in --> overdue: end time passes without a return
+    checked_in --> returned: student returns (checklist + photo)
+    overdue --> returned: student returns late
+    returned --> completed: manager confirms the return
+    rejected --> [*]
+    cancelled --> [*]
+    no_show --> [*]
+    completed --> [*]
+```
+
+| Status | Meaning | Moves on when |
+| --- | --- | --- |
+| `requested` | Waiting for the manager | Approved, rejected, waitlisted or cancelled; cancelled automatically if the slot starts first |
+| `waitlisted` | A competing request was approved | The student accepts an offer (→ approved), declines it or cancels (→ cancelled), or the slot starts (→ cancelled) |
+| `approved` | Confirmed; credits charged | Check-in (→ checked_in), cancel (→ cancelled, refunded if more than 2 hours before or cancelled by the manager), or no check-in within 15 minutes (→ no_show) |
+| `checked_in` | In use | Return (→ returned), or the end time passes (→ overdue) |
+| `overdue` | Past the end without a return | Return (→ returned) |
+| `returned` | Handed back; waiting for the manager | The manager confirms (→ completed) |
+| `completed` | Closed; a peer supervisor who co-signed both reports earns credits | — |
+| `rejected`, `cancelled`, `no_show` | Closed, always with a reason | — |
+
+When an approved booking is cancelled or becomes a no-show, the slot is offered to the top-ranked waitlisted student for 30 minutes (or until the start, if sooner). Overdue, no-show, reminders, offer expiry and stale requests are handled by a database job every minute; every status change writes a row to the audit log.
 
 ## 6. Features
 <!-- Owner: all. P0 / P1 / P2 features that actually work in the demo. Screenshots from C. -->
 
 ## 7. Tech stack and architecture
-<!-- Owner: A. Stack table, architecture diagram, data model / schema diagram, data flow. -->
+
+| Layer | Choice |
+| --- | --- |
+| App | Next.js 16 (App Router, server actions), React 19, TypeScript |
+| UI | Tailwind CSS 4, shadcn/ui, Radix UI, lucide-react |
+| Database | Supabase Postgres: business rules as SQL functions, row-level security, audit triggers, exclusion constraints against double booking |
+| Auth | Supabase Auth (email and password) |
+| Files | Supabase Storage: public resource photos; private condition photos and certificates |
+| Live updates | Supabase Realtime on bookings, waitlist offers and notifications |
+| Scheduled jobs | pg_cron in the database every minute; pg_cron + pg_net calling the app's `/api/jobs` every 5 minutes |
+| AI | Google Gemini through the Vercel AI SDK, structured output checked with zod |
+| Email | Resend HTTP API, from `labpass-team.xyz` |
+| Hosting | Vercel (auto-deploy from `main`, preview per pull request) |
+
+### Architecture
+
+```mermaid
+flowchart LR
+    U[Browser: screens for 5 roles] -->|server actions| N[Next.js on Vercel]
+    U -->|reads under row-level security, Realtime| S[(Supabase Postgres)]
+    N -->|RPC: rules as SQL functions| S
+    N -->|upload / signed links| ST[(Supabase Storage)]
+    N -->|structured prompts| G[Google Gemini]
+    N -->|email| R[Resend]
+    C[pg_cron every minute] --> S
+    C2[pg_cron + pg_net every 5 min] -->|POST /api/jobs + secret| N
+    S -->|triggers| A[(Append-only audit log)]
+```
+
+**Data flow.** Screens read data directly from Supabase, where row-level security returns only what that role may see. Every write goes through a Next.js server action, which calls a Postgres function. That function checks every rule (eligibility, conflicts, limits, credits), changes the data, queues a notification, and writes the audit log through a trigger. The server action turns any refusal into plain-language reasons. AI calls run only on the server; their results are saved as labelled suggestions and never change a booking. Every 5 minutes, `/api/jobs` sends queued emails, deletes condition photos past their 30-day retention, and raises usage-pattern flags.
+
+### Data model (18 tables, plus `ai_outputs` for AI audit)
+
+| Area | Tables |
+| --- | --- |
+| People and departments | `profiles` (name, roll number, department, roles, credit balance, block), `departments` (owner) |
+| Resources | `resources` (type, tier, limits, checklist, deposit, status, photos), `availability_slots` (opening hours), `resource_checkin_codes` (QR codes, no read access for students) |
+| Skills passport | `badges`, `user_badges` (quiz, certificate or graduation; AI extraction), `quizzes` |
+| Supervision | `supervisor_approvals`, `supervisor_slots` (published hours) |
+| Bookings | `bookings` (time range, status, checks, priority score and breakdown, credits), `waitlist_offers`, `condition_reports` (check-in and return checklist, photos, co-signatures) |
+| Incidents and penalties | `incidents` (type, evidence, AI summary and photo diff, decision, dispute), `user_flags` (no-show and usage-pattern flags) |
+| Credits and messages | `credits_ledger` (every charge, refund and top-up), `notifications` |
+| Audit | `activity_log` (who, what, reason, before, after, when; append-only) |
+
+Two exclusion constraints in `bookings` make double booking impossible in the database: no two active bookings can overlap on the same resource, and no supervisor can be in two sessions at once. All rule numbers live in one function, `labpass_config()`.
 
 ## 8. AI and external services
 <!-- Owner: D. For each AI feature: what it does, model used, data sent, who decides. Every output labelled "AI suggestion — needs review", stored in ai_outputs, never changes a booking by itself; flows continue if AI fails. Also: Supabase, Vercel, Resend. -->
@@ -228,17 +349,24 @@ Opening hours for the demo resources are Monday to Saturday, 08:00–20:00 IST. 
 - **Check-in relies on a QR code or typed code at the resource;** it can't prove the student is physically there.
 
 ## 12. Future work
-<!-- Owner: D. Multi-institution sharing, university SSO, smart locks, real payments/deposits, native apps, more languages. -->
+
+- **Sharing across several universities**, so idle equipment can be booked by students from nearby institutions.
+- **University single sign-on** and student-record integration, so identity and department come from the university instead of email.
+- **Smart locks or hardware access control**, so check-in unlocks the room or cabinet and proves the student is there.
+- **Real payments and deposit holds** instead of simulated credits and deposits.
+- **Native mobile apps** (the web app already works on phones), with push notifications.
+- **More languages** than English.
+- **Direct faculty sign-off** for verified deadlines, and tuning the fairness weights and pattern-flag thresholds with real Idle Radar data from a pilot.
 
 ## 13. Team, roles and contributions
 <!-- Owner: D (check GitHub history to be accurate). -->
 
 | Member | Name | Role | Contribution |
 | --- | --- | --- | --- |
-| A |  | Core backend |  |
-| B | Garv Yadav | Workflow backend | Server actions that connect every screen to the database rules (bookings, waitlist, badges and quizzes, supervisors, incidents, credits, admin and Idle Radar), with plain-language errors; photo and certificate uploads with private signed links; QR check-in codes; in-app notifications and email through Resend, including the sending domain; background jobs (`/api/jobs`: emails, 30-day photo deletion, usage-pattern flags) run by pg_cron; quizzes and handover checklists; the fairness and allocation design; wiring the AI features into the screens and building the incident summary and photo comparison; `API.md` for the team; live deployment setup and end-to-end checks. |
-| C |  | Entire frontend |  |
-| D |  | AI, DevOps and submission |  |
+| A | Kumar Ritovash (Kurito15) | Core backend | 11 Supabase migrations: 19 tables, row-level security, all booking, credit, waitlist, supervisor, incident and quiz rules as SQL functions, audit triggers, pg_cron jobs, Idle Radar data functions, demo seed. |
+| B | Garv Yadav | Workflow backend | Server actions that connect every screen to the database rules (bookings, waitlist, badges and quizzes, supervisors, incidents, credits, admin and Idle Radar), with plain-language errors; photo and certificate uploads with private signed links; QR check-in codes; in-app notifications and email through Resend, including the sending domain; background jobs (`/api/jobs`: emails, 30-day photo deletion, usage-pattern flags) run by pg_cron; quizzes and handover checklists; the fairness and allocation design; wiring the AI features into the screens and building the incident summary and photo comparison; `API.md` for the team; live deployment setup (Vercel settings, email domain, scheduled jobs) and end-to-end checks; README and most of this document. |
+| C | Simar Sachdeva | Entire frontend | About 40 screens for all five roles, landing page, notification bell, QR scanner, Idle Radar page. |
+| D | Mudit (mudit08d24-cpu) | AI, DevOps and submission | Repository and Next.js setup (Tailwind, shadcn), Gemini AI wrapper, smart matching, certificate review, email-confirmation callback, project document skeleton. |
 
 ## 14. Disclosure: templates, libraries, AI tools, pre-existing code
 <!-- Owner: D. Every library and template used; shadcn blocks used (from C); AI model name; AI coding assistants used; pre-existing code (none, if true). -->
@@ -246,7 +374,7 @@ Opening hours for the demo resources are Monday to Saturday, 08:00–20:00 IST. 
 - **Libraries** (from `package.json`): Next.js 16, React 19, TypeScript, Tailwind CSS 4, shadcn/ui, Radix UI, lucide-react, class-variance-authority, clsx, tailwind-merge, tw-animate-css, zod, `@supabase/supabase-js`, `@supabase/ssr`, Vercel AI SDK (`ai`, `@ai-sdk/google`), `qrcode`, `html5-qrcode`, `server-only`
 - **Services:** Supabase (Postgres, Auth, Storage, Realtime, pg_cron, pg_net, Vault), Vercel, Resend (HTTP API, no SDK), Google AI Studio (Gemini API)
 - **Project starter:** `create-next-app`
-- **Templates / UI blocks:** _TODO (C)_
+- **Templates / UI blocks:** No templates or shadcn blocks. shadcn/ui was initialised (`components.json`); the UI kit in `components/ui` (button, badge, card, input, toast) is hand-written in the shadcn pattern with `class-variance-authority`. Illustrations in `components/art` are original SVG line art. Design references: layouts and illustration style inspired by shots on [Dribbble](https://dribbble.com), with design help from Claude (Anthropic). Fonts: Bricolage Grotesque, Instrument Sans, JetBrains Mono and Kalam (Google Fonts). Icons: lucide-react.
 - **AI model used in the product:** Google Gemini, Flash family (set by `GEMINI_MODEL`; see section 8)
-- **AI tools used to build it:** Claude (Anthropic), used by Member B for backend code, the AI wiring, documentation and setup; _TODO: others' tools_
-- **Pre-existing code:** _TODO_
+- **AI tools used to build it:** Claude (Anthropic), used by all four members: A for the database migrations and rules, B for the server actions, background jobs, AI wiring, setup and documentation, C for the screens and visual design, and D for the AI features and project setup. Every change was reviewed, tested and committed by the member named in the Git history.
+- **Pre-existing code:** None. Everything was written during the event: the Git history starts on 29 Oct 2026 with the database migrations, and the app started from the standard `create-next-app` starter. Apart from that starter and the libraries and services listed above, no earlier code was reused.
