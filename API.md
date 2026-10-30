@@ -161,6 +161,7 @@ So emails reach every user (not only the Resend account owner), Resend needs a d
 |---|---|---|
 | `getMyEligibility(resourceId)` | `my_eligibility` | `{ status, resourceTier, yourTier }` · status: `eligible \| needs_quiz \| needs_certificate \| needs_supervisor`; or `{ status: "blocked", until, reason }` |
 | `getMyEligibilities(resourceIds[])` | `my_eligibility` ×N | `{ [resourceId]: Eligibility \| null }` · one server round trip for a whole list (Browse) |
+| `getBusyTimesMany(resourceIds[], from, to)` | `resource_busy_times` ×N | `{ [resourceId]: { start, end }[] \| null }` · one round trip for Browse → "Free right now" |
 | `getBusyTimes(resourceId, from, to)` | `resource_busy_times` | `{ start, end }[]` — booked times, without names |
 | `listSupervisorAvailability(resourceId, from, to)` | `list_supervisor_availability` | `{ slotId, supervisorId, supervisorName, kind, start, end }[]` · kind: `staff \| peer` |
 | `setResourceStatus(resourceId, status, reason)` | `set_resource_status` | — · status: `active \| inactive \| maintenance`; reason required |
@@ -440,4 +441,3 @@ Model: Google Gemini via the Vercel AI SDK (`GEMINI_MODEL`, default `gemini-3.7-
 
 - **Certificates** must be PDF, PNG, JPG or WEBP. Call `reviewCertificate` when the manager opens the review page; show `note` and `mismatches` next to the certificate, then the manager uses B's `decideCertificate`.
 - **Idle Radar and usage-pattern flags** are A's database functions with B's actions (`getIdleRadar`, `listPendingFlags`, see "Admin and Idle Radar"). `ai_pattern` flags come from B's rule-based scan (`lib/jobs/pattern-flags.ts`): late cancellations, repeated overdue returns, one student holding most of a contested resource.
-- **Test page:** `/api/ai-test` works only with `npm run dev` (404 on the live site). Delete `app/api/ai-test` before submission.

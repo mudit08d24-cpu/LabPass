@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { SearchIcon, SparklesIcon, ZapIcon } from "lucide-react";
 import { matchResources, type MatchResult } from "@/app/actions/ai-match";
+import { getBusyTimesMany } from "@/lib/actions/resources";
 import { AiSuggestion, EmptyState, ErrorBlock, LoadingBlock, PageHeader } from "@/components/shared";
 import { ResourceCardView } from "@/components/shared/resource-card";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,12 @@ async function freeNow(list: ResourceWithEligibility[]) {
   const q = istParts(until);
   const hhmm = (x: { hour: number; minute: number }) => `${String(x.hour).padStart(2, "0")}:${String(x.minute).padStart(2, "0")}`;
   const open = list.filter((r) => r.status === "active" && r.slots.some((s) => s.weekday === p.weekday && s.start <= hhmm(p) && (q.weekday !== p.weekday ? s.end >= "23:59" : s.end >= hhmm(q))));
+  if (!USE_MOCKS) {
+    // One server call for every open resource (server actions from the browser run one at a time).
+    const r = await getBusyTimesMany(open.map((x) => x.id), now.toISOString(), until.toISOString());
+    // A resource whose busy times couldn't be read is left out, not shown as free.
+    return r.ok ? open.filter((x) => (r.data[x.id] ?? [{ start: "", end: "" }]).length === 0).map((x) => x.id) : [];
+  }
   const busy = await Promise.all(open.map((r) => api.getBusyTimes(r.id, now.toISOString(), until.toISOString()).catch(() => [{ start: "", end: "" }])));
   return open.filter((_, i) => busy[i].length === 0).map((r) => r.id);
 }
