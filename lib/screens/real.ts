@@ -5,7 +5,7 @@
 //    the browser client; A's row-level security only returns what the signed-in user may see
 //    (API.md "Conventions").
 
-import { getBusyTimes as bGetBusyTimes, getMyEligibility, listAssignableManagers as bListAssignableManagers, listSupervisorAvailability as bListSupervisorAvailability, setResourceStatus as bSetResourceStatus } from "@/lib/actions/resources";
+import { getBusyTimes as bGetBusyTimes, getMyEligibility, getMyEligibilities, listAssignableManagers as bListAssignableManagers, listSupervisorAvailability as bListSupervisorAvailability, setResourceStatus as bSetResourceStatus } from "@/lib/actions/resources";
 import {
   acceptWaitlistOffer as bAcceptWaitlistOffer,
   cancelBooking as bCancelBooking,
@@ -370,8 +370,10 @@ export const realApi: ScreensApi = {
       const wd = (new Date(`${f.date}T12:00:00+05:30`).getUTCDay() + 6) % 7;
       rows = rows.filter((r) => r.slots.some((s) => s.weekday === wd));
     }
-    const elig = await Promise.all(rows.map((r) => eligibility(r.id)));
-    return rows.map((r, i) => ({ ...r, eligibility: elig[i] }));
+    // One server call for every card (server actions from the browser run one at a time).
+    const all = await act(getMyEligibilities(rows.map((r) => r.id)), (d: Any) => d as Record<string, Eligibility | null>);
+    const elig = all.ok ? all.data : {};
+    return rows.map((r) => ({ ...r, eligibility: elig[r.id] ?? null }));
   },
   async getResource(id) {
     const { data, error } = await db().from("resources").select(RES).eq("id", id).maybeSingle();
@@ -753,8 +755,17 @@ export const realApi: ScreensApi = {
         .channel("labpass-screens")
         .on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, ping)
         .on("postgres_changes", { event: "*", schema: "public", table: "waitlist_offers" }, ping)
-        .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, ping)
-        .subscribe();
+        .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, ping);
+      const ch = channel;
+      // Realtime filters rows with the token it holds: hand it the signed-in user's token before subscribing.
+      void db()
+        .auth.getSession()
+        .then(async ({ data }) => {
+          if (data.session?.access_token) await db().realtime.setAuth(data.session.access_token);
+        })
+        .finally(() => {
+          if (channel === ch) ch.subscribe();
+        });
     }
     return () => {
       listeners.delete(fn);

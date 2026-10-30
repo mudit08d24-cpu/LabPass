@@ -36,6 +36,7 @@ export async function matchResources(need: string): Promise<MatchResult> {
 
   const res = await runAi({
     feature: "smart_match",
+    timeoutMs: 25_000, // the student is waiting; fall back to keywords after this
     schema,
     system:
       "You help university students find lab resources. Pick up to 5 resources from the list that fit the need, best first. " +

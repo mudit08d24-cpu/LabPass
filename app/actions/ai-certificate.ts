@@ -75,9 +75,7 @@ export async function reviewCertificate(userBadgeId: string): Promise<Certificat
         role: "user",
         content: [
           { type: "text", text: `Extract the details. Is this training relevant to safely using: ${resourceName}?` },
-          mediaType === "application/pdf"
-            ? { type: "file", data: bytes, mediaType }
-            : { type: "image", image: bytes, mediaType },
+          { type: "file", data: bytes, mediaType }, // PDFs and images both go as file parts
         ],
       },
     ],
