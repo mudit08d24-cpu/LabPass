@@ -114,9 +114,9 @@ When an approved booking is cancelled or becomes a no-show, the slot is offered 
 | App | Next.js 16 (App Router, server actions), React 19, TypeScript |
 | UI | Tailwind CSS 4, shadcn/ui, Radix UI, lucide-react |
 | Database | Supabase Postgres: business rules as SQL functions, row-level security, audit triggers, exclusion constraints against double booking |
-| Auth | Supabase Auth (email and password) |
+| Auth | Supabase Auth (email and password, with email confirmation through a one-time link that works in any browser or device: `/auth/confirm`) |
 | Files | Supabase Storage: public resource photos; private condition photos and certificates |
-| Live updates | Supabase Realtime on bookings, waitlist offers and notifications |
+| Live updates | Supabase Realtime on bookings, waitlist offers and notifications; the browser hands Realtime the signed-in user's token before subscribing, so row-level security delivers that user's rows |
 | Scheduled jobs | pg_cron in the database every minute; pg_cron + pg_net calling the app's `/api/jobs` every 5 minutes |
 | AI | Google Gemini through the Vercel AI SDK, structured output checked with zod |
 | Email | Resend HTTP API, from `labpass-team.xyz` |
@@ -139,6 +139,8 @@ flowchart LR
 
 **Data flow.** Screens read data directly from Supabase, where row-level security returns only what that role may see. Every write goes through a Next.js server action, which calls a Postgres function. That function checks every rule (eligibility, conflicts, limits, credits), changes the data, queues a notification, and writes the audit log through a trigger. The server action turns any refusal into plain-language reasons. AI calls run only on the server; their results are saved as labelled suggestions and never change a booking. Every 5 minutes, `/api/jobs` sends queued emails, deletes condition photos past their 30-day retention, and raises usage-pattern flags.
 
+**Performance.** The browser runs server actions one at a time, so screens that need many checks batch them into one call (for example, Browse loads every listing's eligibility with one `getMyEligibilities` call instead of one per card). The business rules (`labpass_config()`) are public numbers, read with the server's key so the landing page works for signed-out visitors.
+
 ### Data model (18 tables, plus `ai_outputs` for AI audit)
 
 | Area | Tables |
@@ -157,7 +159,7 @@ Two exclusion constraints in `bookings` make double booking impossible in the da
 ## 8. AI and external services
 <!-- Owner: D. For each AI feature: what it does, model used, data sent, who decides. Every output labelled "AI suggestion — needs review", stored in ai_outputs, never changes a booking by itself; flows continue if AI fails. Also: Supabase, Vercel, Resend. -->
 
-**Model:** Google Gemini (Flash family) through the Vercel AI SDK (`ai`, `@ai-sdk/google`). The model name is set by the `GEMINI_MODEL` environment variable, with a default in `lib/ai.ts`. Every call asks for structured output validated by a zod schema, times out after 20 seconds and retries once.
+**Model:** Google Gemini (Flash family) through the Vercel AI SDK (`ai`, `@ai-sdk/google`). The model name is set by the `GEMINI_MODEL` environment variable, with a default in `lib/ai.ts`. Every call asks for structured output validated by a zod schema and uses a low thinking setting so answers come back quickly. Calls time out after 50 seconds (25 seconds for smart matching, where the student is waiting); if the model rejects the thinking setting, the call is repeated once without it. Photos and PDFs are sent as file parts.
 
 | AI feature | Where | Data sent to the model | Output | Who decides |
 | --- | --- | --- | --- | --- |
@@ -339,7 +341,8 @@ Opening hours for the demo resources are Monday to Saturday, 08:00–20:00 IST. 
 
 - **AI can be wrong.** Photo comparison can miss small damage or flag lighting changes; certificate reading can misread names or dates. That's why every AI output is only a suggestion and a person decides.
 - **Usage-pattern flags are simple counts** (late cancellations, overdue returns, one student holding most of a contested resource). They can miss other kinds of misuse, and the thresholds haven't been tuned on real usage.
-- **Identity is trusted from email.** There's no university single sign-on; anyone with an email address can create a student account.
+- **Identity is trusted from email.** There's no university single sign-on; anyone who can open a confirmation email can create a student account.
+- **The database is in Ireland (Supabase eu-west-1).** For users in India, each request crosses continents; hosting the app's server functions in the same region (Vercel, Dublin) keeps the server-to-database hops short, but a pilot should use a region near its users.
 - **Credits and deposits are simulated.** No real money is charged or held.
 - **Deadline verification** is entered by a manager on the student's behalf; there's no direct faculty sign-off.
 - **"Hours this week" counts every resource,** so a student who used the seminar room ranks a little lower for the laser cutter. A per-department or per-type count may be fairer after a pilot.
