@@ -2,7 +2,7 @@
 
 > LabPass lets departments of one university share idle labs, rooms and equipment with students from any department, using a skills passport, peer supervisors, an explainable fairness score, photo-backed handovers and an Idle Radar dashboard.
 
-**Team:** Sidechicks · **Live link:** https://lab-pass-rho.vercel.app · **Repository:** https://github.com/mudit08d24-cpu/LabPass · **Demo video:** _TODO_
+**Team:** Sidechicks · **Live link:** https://lab-pass-rho.vercel.app · **Repository:** https://github.com/mudit08d24-cpu/LabPass · **Demo video:** [Watch on Google Drive](https://drive.google.com/file/d/1zAW8uold_q4n1lDgAl7WNCKl9p3xI5Bb/view?usp=drivesdk)
 
 ---
 
