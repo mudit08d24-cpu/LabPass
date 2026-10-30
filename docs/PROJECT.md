@@ -105,7 +105,64 @@ stateDiagram-v2
 When an approved booking is cancelled or becomes a no-show, the slot is offered to the top-ranked waitlisted student for 30 minutes (or until the start, if sooner). Overdue, no-show, reminders, offer expiry and stale requests are handled by a database job every minute; every status change writes a row to the audit log.
 
 ## 6. Features
-<!-- Owner: all. P0 / P1 / P2 features that actually work in the demo. Screenshots from C. -->
+
+All features below work on the live site. P0 is the core journey, P1 the differentiators, P2 the extras (priorities from the PRD).
+
+| Area | Feature | Priority |
+| --- | --- | --- |
+| Accounts | Sign-up with name, roll number and email, email confirmation, login, a role-based home page for each of the five roles; demo-account shortcuts on the login page | P0 |
+| Discovery | One list of every department's resources; filters by type, department, tier and date; "Free right now"; each card shows eligibility (can book, needs quiz, needs certificate, needs supervisor, blocked) | P0 |
+| Discovery | AI smart matching: describe a need, get suggested resources with a reason each | P1 |
+| Skills passport | Tier 1 safety quiz (4 of 5 to pass); Tier 2 certificate upload with AI review and manager approval; Tier 3 graduation; passport with badges and credit history | P0 / P1 |
+| Booking | Weekly availability grid in India time; duration up to the resource's limit; every rule checked with a plain-language reason before sending; credit cost shown; purpose for the manager | P0 |
+| Approval | Manager approves, rejects or waitlists with a reason; contested slots side by side with priority scores; faculty-verified deadline (+15) | P0 / P1 |
+| Waitlist | Rank and score breakdown; freed slots offered in rank order with a 30-minute window | P1 |
+| Handover | QR or typed-code check-in within ±15 minutes of the start; checklist and photos at check-in and return; manager confirms the return; rotating QR codes | P0 |
+| Peer supervision | Apply to supervise, publish hours, co-sign handovers, earn credits; Tier 3 bookings only inside published hours | P1 |
+| Incidents | Report with photos; AI summary and check-in vs return photo comparison; manager decision with a reason (warning, credit penalty, temporary block); student response and dispute; admin resolves | P0 / P1 |
+| Notifications | Live bell for every event; email for approved, rejected, waitlisted, waitlist offer, reminder, overdue and incident decision | P0 |
+| Automatic jobs | No-shows, overdue, reminders, offer expiry, weekly credit top-up, 30-day photo deletion, usage-pattern flags | P0 / P2 |
+| Owners and admin | List and edit resources with tiers, limits, hours, checklist and photos; printable QR; Idle Radar dashboard; restriction flags; disputes | P0 / P1 |
+
+### Screenshots
+
+**Landing page** — what LabPass is, with a shortcut to the six demo accounts.
+
+![Landing page](screenshots/landing.jpg)
+
+**Sign up and sign in** — name, roll number and college email; demo accounts fill the email on the login page.
+
+![Sign up](screenshots/signup.jpg)
+
+![Sign in with demo accounts](screenshots/login.jpg)
+
+**Browse (student)** — every department's resources in one list, with filters, "Free right now", AI smart matching, and an eligibility label on each card (needs certificate, needs quiz, needs supervisor).
+
+![Browse](screenshots/browse.jpg)
+
+**Booking** — pick a free hour on the weekly grid (India time, closed days greyed out), choose a duration up to the resource's limit, and see the credit cost and every rule check before sending.
+
+![Booking a DSLR](screenshots/booking.jpg)
+
+**Skills passport** — the student's card, badges earned (here the DSLR safety quiz), credits with their history, and graduation progress.
+
+![Passport](screenshots/passport.jpg)
+
+**My bookings** — upcoming and past bookings with their status; at most 2 active at a time.
+
+![My bookings](screenshots/my-bookings.jpg)
+
+**Peer supervising** — an approved peer supervisor publishes the hours they're free, sees the sessions they supervise and the co-signatures waiting for them.
+
+![Supervising](screenshots/supervising.jpg)
+
+**Manager: requests** — requests waiting, contested slots, returns to confirm and incidents at a glance; the list updates live.
+
+![Manager requests](screenshots/manager-requests.jpg)
+
+**Manager: contested slots** — overlapping requests grouped with their priority scores, so the manager can compare them; empty here because nothing overlaps.
+
+![Contested slots](screenshots/conflicts.jpg)
 
 ## 7. Tech stack and architecture
 
