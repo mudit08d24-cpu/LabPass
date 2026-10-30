@@ -89,4 +89,4 @@ docs/                   project document and extra SQL
 
 ## Team
 
-Built in 48 hours by kulez team. Roles and contributions are in [docs/PROJECT.md](docs/PROJECT.md#13-team-roles-and-contributions).
+Built in 48 hours by Sidechicks. Roles and contributions are in [docs/PROJECT.md](docs/PROJECT.md#13-team-roles-and-contributions).
