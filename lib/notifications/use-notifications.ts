@@ -35,20 +35,30 @@ export function useNotifications(userId: string | null, initial: { items: Notifi
   useEffect(() => {
     if (!userId) return;
     const supabase = createClient();
-    const channel = supabase
-      .channel(`notifications:${userId}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
-        (change) => {
-          const item = toItem(change.new as Row);
-          setItems((prev) => (prev.some((i) => i.id === item.id) ? prev : [item, ...prev].slice(0, 100)));
-          setUnread((n) => n + 1);
-        },
-      )
-      .subscribe();
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let stopped = false;
+    void (async () => {
+      // Realtime applies row-level security with the token it holds. Give it the signed-in user's
+      // token first; otherwise it connects as anonymous and never receives this user's rows.
+      const { data } = await supabase.auth.getSession();
+      if (stopped) return;
+      if (data.session?.access_token) await supabase.realtime.setAuth(data.session.access_token);
+      channel = supabase
+        .channel(`notifications:${userId}`)
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
+          (change) => {
+            const item = toItem(change.new as Row);
+            setItems((prev) => (prev.some((i) => i.id === item.id) ? prev : [item, ...prev].slice(0, 100)));
+            setUnread((n) => n + 1);
+          },
+        )
+        .subscribe();
+    })();
     return () => {
-      void supabase.removeChannel(channel);
+      stopped = true;
+      if (channel) void supabase.removeChannel(channel);
     };
   }, [userId]);
 

@@ -160,6 +160,7 @@ So emails reach every user (not only the Resend account owner), Resend needs a d
 | B action | Calls A's | Returns |
 |---|---|---|
 | `getMyEligibility(resourceId)` | `my_eligibility` | `{ status, resourceTier, yourTier }` · status: `eligible \| needs_quiz \| needs_certificate \| needs_supervisor`; or `{ status: "blocked", until, reason }` |
+| `getMyEligibilities(resourceIds[])` | `my_eligibility` ×N | `{ [resourceId]: Eligibility \| null }` · one server round trip for a whole list (Browse) |
 | `getBusyTimes(resourceId, from, to)` | `resource_busy_times` | `{ start, end }[]` — booked times, without names |
 | `listSupervisorAvailability(resourceId, from, to)` | `list_supervisor_availability` | `{ slotId, supervisorId, supervisorName, kind, start, end }[]` · kind: `staff \| peer` |
 | `setResourceStatus(resourceId, status, reason)` | `set_resource_status` | — · status: `active \| inactive \| maintenance`; reason required |

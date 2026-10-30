@@ -50,7 +50,7 @@ export async function summarizeIncident(incidentId: string): Promise<IncidentAiR
     { label: "INCIDENT photo", paths: ((inc.photo_urls ?? []) as string[]).slice(0, MAX_PHOTOS_PER_SET) },
   ];
 
-  const content: ({ type: "text"; text: string } | { type: "image"; image: Uint8Array; mediaType: string })[] = [
+  const content: ({ type: "text"; text: string } | { type: "file"; data: Uint8Array; mediaType: string })[] = [
     {
       type: "text",
       text:
@@ -66,7 +66,7 @@ export async function summarizeIncident(incidentId: string): Promise<IncidentAiR
       const { data: file } = await db.storage.from(UPLOADS.conditionPhoto.bucket).download(path);
       if (!file) continue;
       content.push({ type: "text", text: `${set.label}:` });
-      content.push({ type: "image", image: new Uint8Array(await (file as Blob).arrayBuffer()), mediaType });
+      content.push({ type: "file", data: new Uint8Array(await (file as Blob).arrayBuffer()), mediaType });
       photoCount++;
     }
   }

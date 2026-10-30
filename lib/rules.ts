@@ -7,8 +7,9 @@
 //   const rules = await getRules();
 //   rules.max_active_bookings   // 2
 
+import "server-only";
 import { cache } from "react";
-import { getDb } from "@/lib/actions/db";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // Keys match labpass_config() in labpass_schema.sql.
 export type Rules = {
@@ -37,8 +38,10 @@ export type Rules = {
 };
 
 // cache() means one database call per page request, however many times it's used.
+// The rules are public numbers (not user data), so they're read with the server's key: this works for
+// signed-out visitors (the landing page) and expired sessions too. labpass_config() takes no input.
 export const getRules = cache(async (): Promise<Rules> => {
-  const supabase = await getDb();
+  const supabase = createAdminClient();
   const { data, error } = await supabase.rpc("labpass_config");
   if (error || !data) throw new Error("Could not load LabPass rules from the database");
   return data as Rules;

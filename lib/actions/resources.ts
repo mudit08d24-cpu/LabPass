@@ -29,6 +29,14 @@ export async function getMyEligibility(resourceId: string): Promise<Result<Eligi
   });
 }
 
+// The same for many listings in ONE server round trip (Browse). The browser runs server actions one
+// at a time, so calling getMyEligibility per card made the list slow; here they run in parallel.
+export async function getMyEligibilities(resourceIds: string[]): Promise<Result<Record<string, Eligibility | null>>> {
+  const ids = Array.from(new Set(resourceIds)).filter((id) => !badId(id)).slice(0, 100);
+  const results = await Promise.all(ids.map((id) => getMyEligibility(id)));
+  return ok(Object.fromEntries(ids.map((id, i) => [id, results[i].ok ? results[i].data : null])));
+}
+
 // Busy times for the availability calendar, without saying who booked them.
 export async function getBusyTimes(resourceId: string, from: string, to: string): Promise<Result<TimeSlot[]>> {
   const f = isoTime(from), t = isoTime(to);
